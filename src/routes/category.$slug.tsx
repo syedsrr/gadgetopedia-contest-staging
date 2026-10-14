@@ -1,0 +1,80 @@
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+import { ProductCard } from "@/components/site/ProductCard";
+import { SiteLayout } from "@/components/site/SiteLayout";
+import { categoriesQuery, productsQuery, withCategories } from "@/lib/catalog";
+
+export const Route = createFileRoute("/category/$slug")({
+  head: ({ params }) => {
+    const pretty = params.slug
+      .split("-")
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(" ");
+    return {
+      meta: [
+        { title: `${pretty} — gadgetOpedia n' Lifestyle` },
+        {
+          name: "description",
+          content: `Shop ${pretty.toLowerCase()} at gadgetOpedia n' Lifestyle. Genuine products with warranty and cash on delivery in Bangladesh.`,
+        },
+        { property: "og:title", content: `${pretty} — gadgetOpedia n' Lifestyle` },
+        {
+          property: "og:description",
+          content: `Shop ${pretty.toLowerCase()} at gadgetOpedia n' Lifestyle.`,
+        },
+      ],
+    };
+  },
+  component: CategoryPage,
+});
+
+function CategoryPage() {
+  const { slug } = Route.useParams();
+  const { data: products = [], isPending: productsPending } = useQuery(productsQuery);
+  const { data: categories = [], isPending: categoriesPending } = useQuery(categoriesQuery);
+  const liveProducts = withCategories(products, categories);
+  const isPending = productsPending || categoriesPending;
+
+  const category = categories.find((c) => c.slug === slug);
+  const list = liveProducts.filter((p) => p.categories?.slug === slug);
+
+  return (
+    <SiteLayout>
+      <div className="border-b border-border bg-secondary/50">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-5 sm:py-10">
+          <nav className="text-xs text-muted-foreground">
+            <Link to="/" className="hover:text-moss">
+              Home
+            </Link>
+            <span className="px-1.5">/</span>
+            <span className="text-foreground">{category?.name ?? slug}</span>
+          </nav>
+          <h1 className="mt-1.5 font-display text-xl font-bold sm:mt-3 sm:text-3xl">
+            {category?.name ?? slug}
+          </h1>
+          <p className="mt-1 max-w-xl text-xs text-muted-foreground sm:mt-2 sm:text-sm">
+            {list.length} product{list.length === 1 ? "" : "s"} available
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-10">
+
+        {isPending ? (
+          <p className="text-sm text-muted-foreground">Loading products…</p>
+        ) : list.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            No products in this category yet — check back soon.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {list.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        )}
+      </div>
+    </SiteLayout>
+  );
+}

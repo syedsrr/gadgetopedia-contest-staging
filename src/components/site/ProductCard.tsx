@@ -1,0 +1,160 @@
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Heart, ImageOff, ShoppingBag } from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { useCart } from "@/lib/cart";
+import type { ProductWithCategory } from "@/lib/catalog";
+import { formatBDT, formatReleaseDate, isPreorder, isPurchasable, priceInfo } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { useWishlist } from "@/lib/wishlist";
+
+export function ProductCard({
+  product,
+  onQuickView,
+}: {
+  product: ProductWithCategory;
+  onQuickView?: (product: ProductWithCategory) => void;
+}) {
+  const { add } = useCart();
+  const navigate = useNavigate();
+  const { ids, toggle, isSignedIn } = useWishlist();
+  const saved = ids.has(product.id);
+  const { selling, compareAt, off } = priceInfo(product);
+  const preorder = isPreorder(product);
+  const soldOut = !isPurchasable(product) && !preorder;
+  const lowThreshold = Number(product.low_stock_threshold ?? 5);
+  const arrival = formatReleaseDate(product.preorder_release_date);
+
+  return (
+    <article className="glass-card group relative flex min-w-0 flex-col overflow-hidden rounded-xl hover:-translate-y-1 sm:rounded-2xl">
+      <Link
+        to="/product/$slug"
+        params={{ slug: product.slug }}
+        className="relative block aspect-square overflow-hidden bg-secondary/60"
+      >
+
+        {product.image_url ? (
+          <img
+            src={product.image_url}
+            alt={product.image_alt ?? product.name}
+            loading="lazy"
+            decoding="async"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 300px"
+            width={1024}
+            height={1024}
+            className="h-full w-full object-cover transition-transform duration-[800ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] group-hover:scale-[1.08]"
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ImageOff className="h-6 w-6" aria-hidden="true" />
+            No image
+          </div>
+        )}
+
+        {off !== null && (
+          <span className="absolute left-2 top-2 rounded-full bg-sale px-2 py-1 text-[0.65rem] font-bold text-sale-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_6px_16px_-6px_rgb(0_0_0/0.45)] sm:left-3 sm:top-3 sm:px-2.5 sm:text-[0.7rem]">
+            -{off}%
+          </span>
+        )}
+        {preorder && (
+          <span className="absolute bottom-2 left-2 rounded-full border border-white/25 bg-canopy/90 px-2 py-1 text-[0.65rem] font-bold uppercase text-canopy-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.25)] sm:bottom-3 sm:left-3 sm:px-2.5 sm:text-[0.7rem]">
+            Pre-order
+          </span>
+        )}
+        {soldOut && (
+          <span className="absolute inset-0 flex items-center justify-center bg-canopy/55">
+            <span className="rounded-full border border-white/25 bg-canopy/90 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-canopy-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.25)]">
+              Out of stock
+            </span>
+          </span>
+        )}
+
+      </Link>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        type="button"
+        aria-label={saved ? "Remove from wish list" : "Save to wish list"}
+        aria-pressed={saved}
+        className="absolute right-2 top-2 h-10 w-10 rounded-full border border-white/50 bg-background/85 text-foreground/70 shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_6px_16px_-6px_rgb(0_0_0/0.35)] hover:text-sale sm:right-3 sm:top-3"
+        onClick={() => {
+          if (!isSignedIn) {
+            toast.info("Sign in to save products to your wish list");
+            return;
+          }
+          toggle.mutate(product.id);
+        }}
+      >
+        <Heart className={cn("h-4 w-4", saved && "fill-sale text-sale")} />
+      </Button>
+
+      <div className="flex flex-1 flex-col gap-1.5 p-3 sm:gap-2 sm:p-4">
+        {product.categories?.name && (
+          <span className="eyebrow text-muted-foreground">{product.categories.name}</span>
+        )}
+        <Link
+          to="/product/$slug"
+          params={{ slug: product.slug }}
+          className="line-clamp-2 min-h-8 font-display text-xs font-semibold leading-snug text-foreground transition-colors hover:text-moss sm:min-h-10 sm:text-[0.95rem]"
+        >
+          {product.name}
+        </Link>
+        <div className="mt-auto flex items-baseline gap-2 pt-1">
+          <span className="font-display text-sm font-bold text-primary sm:text-lg">
+            {formatBDT(selling)}
+          </span>
+          {compareAt !== null && (
+            <span className="hidden text-[11px] text-muted-foreground line-through min-[390px]:inline sm:text-sm">
+              {formatBDT(compareAt)}
+            </span>
+          )}
+        </div>
+        {preorder ? (
+          <p className="text-[11px] font-semibold text-moss sm:text-xs">
+            {arrival ? `Ships from ${arrival}` : "Ships when stock arrives"}
+          </p>
+        ) : (
+          product.stock > 0 &&
+          product.stock <= lowThreshold && (
+            <p className="text-[11px] font-semibold text-sale sm:text-xs">
+              Only {product.stock} left in stock
+            </p>
+          )
+        )}
+
+        <Button
+          size="sm"
+          className="mt-2 h-10 w-full px-2 text-xs sm:h-8 sm:px-3"
+          disabled={soldOut}
+          onClick={() => {
+            add({
+              id: product.id,
+              name: product.name,
+              slug: product.slug,
+              price: selling,
+              image_url: product.image_url,
+              max_stock: preorder ? 99 : Number(product.stock ?? 0),
+            });
+            if (preorder) navigate({ to: "/checkout" });
+          }}
+        >
+          <ShoppingBag className="mr-1.5 h-4 w-4" />
+          {soldOut ? "Out of stock" : preorder ? "Pre-order now" : "Add to cart"}
+        </Button>
+        {onQuickView && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="glass-pill press mt-1.5 h-9 w-full rounded-full px-1 text-[0.7rem] text-foreground/70 hover:text-moss sm:h-8 sm:text-xs"
+            onClick={() => onQuickView(product)}
+          >
+
+            View full specs
+          </Button>
+        )}
+      </div>
+    </article>
+  );
+}
